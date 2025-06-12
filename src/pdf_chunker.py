@@ -1,15 +1,18 @@
 from pdfminer.high_level import extract_text_to_fp
 from pdfminer.pdfpage import PDFPage
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
 from io import StringIO
 import re
 import fitz
 from dotenv import load_dotenv
 import os
+import pickle
 
 load_dotenv()
 
 TITLE = os.getenv("DOC_TITLE")
+PDF_PATH = os.getenv("DOC_PATH")
 
 # Extraction
 
@@ -91,3 +94,30 @@ def extract_with_metadata(pdf_path):
     metadata = extract_doc_metadata(pdf_path)
 
     return enrich_chunks_with_doc_metadata(meta_chunks, metadata)
+
+
+def save_as_documents(pdf_path):
+    enriched_chunks = extract_with_metadata(pdf_path)
+
+    documents = [
+        Document(
+            page_content=chunk['text'],
+            metadata={
+                'chunk_index': chunk['chunk_index'],
+                'chunk_id': chunk['chunk_id'],
+                'page_number': chunk['page_number'],
+                'title': chunk['title'],
+                'author': chunk['author'],
+                'page_count': chunk['page_count']
+            }
+        )
+        for chunk in enriched_chunks
+    ]
+
+    with open("data/chunks_metadata.pkl", 'wb') as file:
+        pickle.dump(documents, file)
+
+
+
+if __name__ == '__main__':
+    save_as_documents(PDF_PATH)
