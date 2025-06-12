@@ -1,3 +1,4 @@
 pdfminer.six
 langchain
 PyMuPDF
+python-dotenv
