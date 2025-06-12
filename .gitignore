@@ -1,0 +1,15 @@
+# ---FILES---
+
+.env
+.DS_Store
+
+# Ignore pdf
+data/ifc-annual-report-2024-financials.pdf
+
+# Ignore file with pdf parsing
+src/pdf_playground.ipynb
+
+
+# ---DIRECTORIES---
+
+venv/
