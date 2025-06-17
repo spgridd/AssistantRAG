@@ -3,9 +3,9 @@
 .env
 .DS_Store
 
-# Ignore pdf
-data/ifc-annual-report-2024-financials.pdf
-data/chunks_metadata.pkl
+# Ignore data files
+data/
+!/data/README.md
 
 # Ignore file with pdf parsing
 src/data_processing/pdf_playground.ipynb
