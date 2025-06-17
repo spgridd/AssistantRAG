@@ -8,9 +8,10 @@ data/ifc-annual-report-2024-financials.pdf
 data/chunks_metadata.pkl
 
 # Ignore file with pdf parsing
-src/pdf_playground.ipynb
+src/data_processing/pdf_playground.ipynb
 
 
 # ---DIRECTORIES---
 
 venv/
+__pycache__/

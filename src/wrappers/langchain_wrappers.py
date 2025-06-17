@@ -1,0 +1,89 @@
+import os
+from dotenv import load_dotenv
+from langchain_core.embeddings import Embeddings
+from google.genai.types import Content, Part
+import google.genai as genai
+from google.genai import types
+from langchain_core.language_models import BaseChatModel
+from langchain_core.outputs import ChatResult
+from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
+from pydantic import BaseModel, PrivateAttr
+
+from genai_client.client import get_client
+
+
+load_dotenv()
+
+
+PROJECT_ID = os.getenv("GEMINI_PROJECT")
+LOCATION = os.getenv("GEMINI_LOCATION")
+
+
+CLIENT = get_client()
+
+# Embbedding wrapper
+class VertexAIEmbedding(Embeddings):
+    def __init__(self, client: genai.Client = CLIENT, model: str = "models/text-embedding-004"):
+        self.client = client
+        self.model = model
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [
+            self._embed_text(text)
+            for text in texts
+        ]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed_text(text)
+
+    def _embed_text(self, text: str) -> list[float]:
+        contents = Content(parts=[Part(text=text)])
+        response = self.client.models.embed_content(
+            model=f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/text-embedding-004",
+            contents=contents,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+        )
+        return response.embeddings[0].values
+
+
+# LLM wrapper
+
+class VertexAIChat(BaseChatModel, BaseModel):
+    model: str
+    temperature: float = 0.0
+    _client: genai.Client = PrivateAttr()
+
+    def __init__(self, client: genai.Client = CLIENT, **kwargs):
+        super().__init__(**kwargs)
+        self._client = client
+
+    def _generate(self, messages: list[BaseMessage], stop=None, **kwargs) -> ChatResult:
+        contents = []
+        for msg in messages:
+            role = "user" if isinstance(msg, HumanMessage) else "model"
+            contents.append(Content(parts=[Part(text=msg.content)], role=role))
+
+        response = self._client.models.generate_content(
+            model=self.model,
+            contents=contents,
+            config={"temperature": self.temperature}
+        )
+        return ChatResult(
+            generations=[
+                {
+                    "text": response.text,
+                    "message": AIMessage(content=response.text)
+                }
+            ]
+        )
+
+    def _create_chat_result(self, text: str):
+        return self._to_chat_result(AIMessage(content=text))
+
+    def _to_chat_result(self, message: AIMessage):
+        from langchain_core.outputs import ChatResult, ChatGeneration
+        return ChatResult(generations=[ChatGeneration(message=message)])
+
+    @property
+    def _llm_type(self) -> str:
+        return "vertexai-chat"
