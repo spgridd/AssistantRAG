@@ -1,9 +1,9 @@
-from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from sentence_transformers import CrossEncoder
 
 from wrappers.langchain_wrappers import VertexAIChat, CrossEncoderReRanker
+from llm.prompts import get_doc_prompt, get_qa_prompt
 
 
 GEMINI_MODEL_NAME = "gemini-2.0-flash"
@@ -17,42 +17,8 @@ def get_conversation_chain(vector_store, re_ranker):
         return_messages=True
     )
 
-    document_prompt_template = """
-        Content: {page_content}
-        
-        Source Metadata:
-            - Content Type: {content_type}
-            - Title: {title}
-            - Author: {author}
-            - Page: {page_number}
-    """
-
-    DOCUMENT_PROMPT = PromptTemplate(
-        template=document_prompt_template,
-        input_variables=["page_content", "content_type", "title", "author", "page_number"]
-    )
-
-    qa_prompt_template = """
-        You are a helpful AI assistant. Use the following pieces of context and the chat history to answer the question at the end.
-        Specify page from which you took the informations and tell whether it was a text or the table.
-        If you don't know the answer, just say that you don't know, don't try to make up an answer.
-
-        CHAT HISTORY:
-        {chat_history}
-
-        CONTEXT:
-        {context}
-
-        QUESTION:
-        {question}
-
-        Comprehensive answer in correct markdown format:
-    """
-
-    QA_PROMPT = PromptTemplate(
-        template=qa_prompt_template,
-        input_variables=["context", "question", "chat_history"]
-    )
+    document_prompt = get_doc_prompt()
+    qa_prompt = get_qa_prompt()
 
     # Enable/Disable reranker
     if re_ranker:
@@ -73,8 +39,8 @@ def get_conversation_chain(vector_store, re_ranker):
         memory=memory,
         verbose=True,
         combine_docs_chain_kwargs={
-            "prompt": QA_PROMPT,
-            "document_prompt": DOCUMENT_PROMPT
+            "prompt": qa_prompt,
+            "document_prompt": document_prompt
         }
     )
 
