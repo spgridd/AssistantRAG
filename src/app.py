@@ -57,11 +57,8 @@ def main():
         except Exception as e:
             st.error(f"An error occurred while processing the PDF: {e}")
             return
-
-    if st.session_state.conversation is None and st.session_state.vector_store:
-        st.session_state.conversation = get_conversation_chain(
-            st.session_state.vector_store
-        )
+    if 'reranker' not in st.session_state:
+        st.session_state.reranker = False
 
     display_chat_history()
 
@@ -77,14 +74,25 @@ def main():
                 st.markdown(last_ai_response)
 
     with st.sidebar:
-        st.header("Session Details")
+        st.header("Additional Options")
+        reranker_enabled = st.sidebar.toggle("Enable Re-Ranker")
 
-        with st.expander("Prompt Sent to LLM"):
-            st.code(st.session_state.add_info_prompt, language="markdown")
-
-        with st.expander("Retrieved Context"):
-            st.markdown("Chunks retrieved by the vector search:")
-            st.code(st.session_state.retrieved, language="markdown")
+    if reranker_enabled:
+        st.sidebar.success("✅ Re-Ranker is ENABLED")
+        st.session_state.reranker = True
+        if st.session_state.vector_store:
+            st.session_state.conversation = get_conversation_chain(
+                vector_store=st.session_state.vector_store, 
+                re_ranker=st.session_state.reranker
+            )
+    else:
+        st.sidebar.warning("🚫 Re-Ranker is DISABLED")
+        st.session_state.reranker = False
+        if st.session_state.vector_store:
+            st.session_state.conversation = get_conversation_chain(
+                vector_store=st.session_state.vector_store,
+                re_ranker=st.session_state.reranker
+            )
 
 
 

@@ -1,14 +1,18 @@
 import os
 from dotenv import load_dotenv
+from pydantic import BaseModel, PrivateAttr
 
-from langchain_core.embeddings import Embeddings
-from google.genai.types import Content, Part
 import google.genai as genai
 from google.genai import types
+from google.genai.types import Content, Part
 from langchain_core.language_models import BaseChatModel
 from langchain_core.outputs import ChatResult
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
-from pydantic import BaseModel, PrivateAttr
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.embeddings import Embeddings
+import torch
+from sentence_transformers import CrossEncoder
 
 from genai_client.client import get_client
 
@@ -48,7 +52,6 @@ class VertexAIEmbedding(Embeddings):
 
 
 # LLM wrapper
-
 class VertexAIChat(BaseChatModel, BaseModel):
     model: str
     temperature: float = 0.0
@@ -88,3 +91,28 @@ class VertexAIChat(BaseChatModel, BaseModel):
     @property
     def _llm_type(self) -> str:
         return "vertexai-chat"
+
+
+#Re-ranking Retriever Wrapper
+class CrossEncoderReRanker(BaseRetriever):
+    retriever: BaseRetriever
+    model: CrossEncoder
+    top_n: int
+
+    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun):
+        initial_docs = self.retriever.get_relevant_documents(query, callbacks=run_manager.get_child())
+        
+        if not initial_docs:
+            return []
+        
+        doc_pairs = [[query, doc.page_content] for doc in initial_docs]
+
+        with torch.no_grad():
+            scores = self.model.predict(doc_pairs)
+        
+        docs_with_scores = list(zip(initial_docs, scores))
+        sorted_docs_with_scores = sorted(docs_with_scores, key=lambda x: x[1], reverse=True)
+        
+        reranked_docs = [doc for doc, score in sorted_docs_with_scores[:self.top_n]]
+        
+        return reranked_docs
