@@ -4,7 +4,7 @@ from langchain_community.vectorstores import FAISS
 from wrappers.langchain_wrappers import VertexAIEmbedding
 
 load_dotenv()
-FAISS_INDEX_DIR = "data/faiss_index"
+FAISS_INDEX_DIR = "data/faiss_index_with_type"
 
 
 def get_vector_store(documents):

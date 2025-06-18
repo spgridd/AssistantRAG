@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+
 from langchain_core.embeddings import Embeddings
 from google.genai.types import Content, Part
 import google.genai as genai

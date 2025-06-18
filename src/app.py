@@ -8,10 +8,10 @@ from llm.utils import get_vector_store
 from llm.chain import get_conversation_chain
 
 
-with open("data/chunks_metadata.pkl", 'rb') as file:
+with open("data/chunks_metadata_with_type.pkl", 'rb') as file:
     DOCUMENTS = pickle.load(file)
 
-FAISS_INDEX_DIR = "data/faiss_index"
+FAISS_INDEX_DIR = "data/faiss_index_with_type"
 
 
 def handle_user_input(question):
