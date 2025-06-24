@@ -44,3 +44,14 @@ def get_qa_prompt():
     )
 
     return qa_prompt
+
+
+def get_filter_prompt():
+    filter_prompt = """
+        From given prompt retrieve three parameters:
+        - content_type: 'text' or 'table' or 'any' (if not specified)
+        - greater_than: lower bound for pages range (if not specified don't return this field)
+        - less_than: upper bound for pages range (if not specified don't return this field)
+    """
+
+    return filter_prompt

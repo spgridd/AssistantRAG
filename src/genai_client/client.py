@@ -8,9 +8,6 @@ load_dotenv()
 PROJECT_ID = os.getenv("GEMINI_PROJECT")
 LOCATION = os.getenv("GEMINI_LOCATION")
 USE_VERTEXAI = True
-GEMINI_MODEL_NAME = "gemini-2.0-flash"
-EMBEDDING_MODEL = "models/text-embedding-004"
-FAISS_INDEX_DIR = "data/faiss_index"
 
 
 def get_client():
