@@ -8,6 +8,7 @@ import pickle
 
 from cleaning import clean_text, remove_footer
 from utils import chunking, is_overlap, table_to_markdown, describe_image
+from mapping import get_image_pages
 
 load_dotenv()
 
@@ -15,86 +16,103 @@ PDF_PATH = os.getenv("DOC_PATH")
 IMG_PATH = "data/images"
 
 
-def extract_pdf_content(pdf_path):
+def extract_text_and_tables(pdf_path):
     result = []
 
-    os.makedirs(IMG_PATH, exist_ok=True)
-
     with pdfplumber.open(pdf_path) as pdf:
-        chunk_index = 0
-
         for page_num, page in enumerate(pdf.pages):
             tables = page.find_tables()
             table_bboxes = [table.bbox for table in tables]
 
             non_table_words = []
             for word in page.extract_words():
+                # word bbox: (x0, top, x1, bottom)
                 word_bbox = (float(word["x0"]), float(word["top"]), float(word["x1"]), float(word["bottom"]))
-                if not any(is_overlap(word_bbox, bbox) for bbox in table_bboxes):
+                
+                # Check if word bbox overlaps with any table bbox
+                is_table_word = any(is_overlap(word_bbox, bbox) for bbox in table_bboxes)
+                if not is_table_word:
                     non_table_words.append(word["text"])
 
             paragraph_text = " ".join(non_table_words)
+
             extracted_tables = [table.extract() for table in tables]
 
-            # Add tables
-            for table_index, table in enumerate(extracted_tables):
-                table_str = table_to_markdown(table)
-                result.append({
-                    "chunk_index": chunk_index,
-                    "chunk_id": f"{page_num}_table_{table_index}",
-                    "page_number": page_num,
-                    "page_content": table_str,
-                    "content_type": "table"
-                })
-                chunk_index += 1
-
-            # Add text chunks
-            txt = clean_text(paragraph_text.strip())
+            id_counter = 0
+            if extracted_tables:
+                for table in extracted_tables:
+                    table_str = table_to_markdown(table)
+                    result.append({
+                        "chunk_index": len(result),
+                        "chunk_id": f"{page_num}_tab_{id_counter}",
+                        "page_number": page_num,
+                        "page_content": table_str,
+                        "content_type": "table"
+                    })
+                    id_counter += 1
+            
+            txt = paragraph_text.strip()
+            txt = clean_text(txt)
             txt = remove_footer(txt, page_num)
+
             chunked = chunking(txt)
 
-            for text_index, chunk in enumerate(chunked):
+            id_counter = 0
+            for chunk in chunked:
                 result.append({
-                    "chunk_index": chunk_index,
-                    "chunk_id": f"{page_num}_text_{text_index}",
+                    "chunk_index": len(result),
+                    "chunk_id": f"{page_num}_txt_{id_counter}",
                     "page_number": page_num,
                     "page_content": chunk,
                     "content_type": "text"
                 })
-                chunk_index += 1
+                id_counter += 1
 
-    # Extract images
+    return result
+
+
+def extract_images(pdf_path, result, pages, dpi=150):
+    output_dir = IMG_PATH
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     pdf_document = fitz.open(pdf_path)
-    file_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    
+    chunk_index = len(result)
 
-    for page_num in range(len(pdf_document)):
-        page = pdf_document[page_num]
-        image_list = page.get_images(full=True)
+    for fig_num, page_num in pages.items():
+        image_path = os.path.join(output_dir, f"page_{page_num}.png")
 
-        for img_index, img in enumerate(image_list, start=1):
-            base_image = pdf_document.extract_image(img[0])
-            image_data = base_image["image"]
-            image_ext = base_image["ext"]
+        if not os.path.exists(image_path):
+            print(f"INFO: Image '{image_path}' not found. Rendering page {page_num}...")
+            if 0 < page_num <= pdf_document.page_count:
+                page = pdf_document.load_page(page_num)
+                
+                zoom = dpi / 72
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat)
+                
+                pix.save(image_path)
+            else:
+                print(f"ERROR: Page number {page_num} is out of range. Skipping figure {fig_num}.")
+                continue
+        else:
+            print(f"INFO: Found existing image for page {page_num} at '{image_path}'.")
 
-            image_name = f"{file_name}_page_{page_num + 1}_image_{img_index}.{image_ext}"
-            image_path = os.path.join(IMG_PATH, image_name)
+        description = describe_image(image_path, fig_num)
 
-            with open(image_path, "wb") as f:
-                f.write(image_data)
-
-            description = describe_image(image_path)
-
-            result.append({
-                "chunk_index": chunk_index,
-                "chunk_id": f"{page_num}_img_{img_index}",
-                "page_number": page_num,
-                "page_content": description,
-                "content_type": "image"
-            })
-            chunk_index += 1
+        chunk_index += 1
+        result.append({
+            "chunk_index": chunk_index,
+            "chunk_id": f"{chunk_index}_img_{fig_num}",
+            "page_number": page_num,
+            "page_content": description,
+            "content_type": "image"
+        })
 
     pdf_document.close()
-    return result
+    return result   
 
 
 def extract_doc_metadata(pdf_path):
@@ -114,7 +132,9 @@ def enrich_chunks_with_doc_metadata(chunks, doc_meta):
 
 
 def extract_with_metadata(pdf_path):
-    extracted = extract_pdf_content(pdf_path)
+    extracted = extract_text_and_tables(pdf_path)
+    pages = get_image_pages()
+    extracted = extract_images(pdf_path, extracted, pages)
     metadata = extract_doc_metadata(pdf_path)
 
     return enrich_chunks_with_doc_metadata(extracted, metadata)

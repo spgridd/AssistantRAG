@@ -9,6 +9,7 @@ data/
 
 # Ignore file with pdf parsing
 src/data_processing/pdf_playground.ipynb
+src/data_processing/mapping.py
 
 
 # ---DIRECTORIES---

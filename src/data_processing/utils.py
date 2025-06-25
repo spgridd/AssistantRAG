@@ -80,7 +80,7 @@ def get_client():
     return client
 
 
-def describe_image(image_path):
+def describe_image(image_path, figure):
     client = get_client()
 
     try:
@@ -94,7 +94,7 @@ def describe_image(image_path):
                     data=image_data
                 )
             ),
-            types.Part(text="Describe this image in detail.")
+            types.Part(text=f"Describe in detail Figure {figure} (only this one) that is on this page.")
         ]
 
         contents = [types.Content(parts=parts, role="user")]

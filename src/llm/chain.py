@@ -5,7 +5,7 @@ from langchain.chains.query_constructor.base import AttributeInfo
 from sentence_transformers import CrossEncoder
 import json
 
-from wrappers.langchain_wrappers import VertexAIChat, CrossEncoderReRanker
+from wrappers.langchain_wrappers import VertexAIChat, CrossEncoderReRanker, HybridRetriever
 from llm.prompts import get_doc_prompt, get_qa_prompt
 from llm.utils import get_faiss_filter
 
@@ -51,8 +51,11 @@ def get_conversation_chain(vector_store, re_ranker, faiss, user_prompt):
     # Enable/Disable reranker
     if re_ranker:
         if faiss:
-            faiss_filter = get_faiss_filter(user_prompt)
-            base_retriever = vector_store.as_retriever(search_kwargs={'k': 10, 'filter': faiss_filter})
+            print("INFO: Using HybridRetriever with ReRanker.")
+            base_retriever = HybridRetriever(
+                vector_store=vector_store, 
+                get_faiss_filter_func=get_faiss_filter
+            )
         else:
             base_retriever = SelfQueryRetriever.from_llm(
                 llm=llm,
@@ -66,12 +69,15 @@ def get_conversation_chain(vector_store, re_ranker, faiss, user_prompt):
         retriever = CrossEncoderReRanker(
             retriever=base_retriever, 
             model=cross_encoder_model, 
-            top_n=5
+            top_n=10
         )
     else:
         if faiss:
-            faiss_filter = get_faiss_filter(user_prompt)
-            retriever = vector_store.as_retriever(search_kwargs={'k': 10, 'filter': faiss_filter})
+            print("INFO: Using HybridRetriever without ReRanker.")
+            retriever = HybridRetriever(
+                vector_store=vector_store, 
+                get_faiss_filter_func=get_faiss_filter
+            )
         else:
             retriever = SelfQueryRetriever.from_llm(
                 llm=llm,

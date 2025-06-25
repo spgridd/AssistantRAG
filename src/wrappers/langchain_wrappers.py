@@ -9,10 +9,13 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.outputs import ChatResult
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.retrievers import BaseRetriever
+from langchain.schema import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.embeddings import Embeddings
+from langchain_community.vectorstores import FAISS
 import torch
 from sentence_transformers import CrossEncoder
+from typing import List, Callable, Any, Tuple
 
 from genai_client.client import get_client
 
@@ -116,3 +119,51 @@ class CrossEncoderReRanker(BaseRetriever):
         reranked_docs = [doc for doc, score in sorted_docs_with_scores[:self.top_n]]
         
         return reranked_docs
+    
+
+class HybridRetriever(BaseRetriever):
+    vector_store: FAISS
+    get_faiss_filter_func: Callable[[str, str], Tuple[Any, bool]]
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> List[Document]:
+        _, any_flag = self.get_faiss_filter_func(query)
+
+        if any_flag:
+            print("INFO: HybridRetriever performing hybrid search for general query.")
+            
+            retrieval_plan = [
+                {'content_type': 'text', 'k': 10},
+                {'content_type': 'table', 'k': 10},
+                {'content_type': 'image', 'k': 5},
+            ]
+            
+            all_retrieved_docs = []
+            for plan in retrieval_plan:
+                content_type, k = plan['content_type'], plan['k']
+                
+                specific_filter, _ = self.get_faiss_filter_func(query, force_content_type=content_type)
+                
+                temp_retriever = self.vector_store.as_retriever(
+                    search_kwargs={'k': k, 'filter': specific_filter}
+                )
+                
+                all_retrieved_docs.extend(temp_retriever.invoke(query))
+
+            unique_docs = {}
+            for doc in all_retrieved_docs:
+                if 'chunk_id' in doc.metadata:
+                    unique_docs[doc.metadata['chunk_id']] = doc
+            
+            return list(unique_docs.values())
+
+        else:
+            print("INFO: HybridRetriever performing search for specific content type.")
+            
+            specific_filter, _ = self.get_faiss_filter_func(query)
+            
+            retriever = self.vector_store.as_retriever(
+                search_kwargs={'k': 25, 'filter': specific_filter}
+            )
+            return retriever.invoke(query)

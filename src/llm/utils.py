@@ -61,27 +61,43 @@ def extract_filters(prompt):
     return response.candidates[0].content.parts[0].text.strip()
 
 
-def get_faiss_filter(user_prompt):
-    filters = extract_filters(user_prompt)
+def get_faiss_filter(user_prompt, force_content_type=None):
+    """
+    Generates a FAISS metadata filter.
+    
+    Can now be forced to generate a filter for a specific content type while
+    preserving other extracted filters from the user_prompt.
+    """
+    filters_str = extract_filters(user_prompt)
 
     try:
-        filters_dict = json.loads(filters)
+        filters_dict = json.loads(filters_str)
     except json.JSONDecodeError:
         filters_dict = {}
 
-    faiss_filter = {}
-
-    if filters_dict.get("content_type") and filters_dict["content_type"] != "any":
-        faiss_filter["content_type"] = filters_dict["content_type"]
+    content_type = force_content_type if force_content_type else filters_dict.get("content_type", "any")
+    
+    any_flag = (content_type == "any")
 
     greater_than = filters_dict.get("greater_than")
     less_than = filters_dict.get("less_than")
 
+    faiss_filter_dict = {}
+    if not any_flag:
+        faiss_filter_dict["content_type"] = content_type
+
     if greater_than is not None or less_than is not None:
         def page_number_filter(metadata):
-            page = metadata.get("page_number", 0)
-            return (greater_than is None or page > greater_than) and \
-                   (less_than is None or page < less_than)
-        return page_number_filter
+            type_match = True
+            if not any_flag:
+                type_match = metadata.get("content_type") == content_type
 
-    return faiss_filter
+            page = metadata.get("page_number", 0)
+            page_match = (greater_than is None or page > greater_than) and \
+                         (less_than is None or page < less_than)
+            
+            return type_match and page_match
+        
+        return page_number_filter, (filters_dict.get("content_type") == "any")
+
+    return faiss_filter_dict, any_flag
