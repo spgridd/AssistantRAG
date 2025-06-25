@@ -11,12 +11,12 @@ from genai_client.client import get_client
 from llm.prompts import get_filter_prompt
 
 load_dotenv()
-FAISS_INDEX_DIR = "data/faiss_index_with_type"
-CHROMA_DIR = "data/chroma"
+FAISS_INDEX_DIR = "data/faiss_index_with_images"
+CHROMA_DIR = "data/chroma_with_images"
 
 
 class FilterSchema(BaseModel):
-    content_type: Literal["table", "text", "any"]
+    content_type: Literal["table", "text", "image", "any"]
     greater_than: Optional[int]
     less_than: Optional[int]
 

@@ -12,8 +12,8 @@ from llm.chain import get_conversation_chain
 with open("data/chunks_metadata_with_type.pkl", 'rb') as file:
     DOCUMENTS = pickle.load(file)
 
-FAISS_INDEX_DIR = "data/faiss_index_with_type"
-CHROMA_DIR = "data/chroma"
+FAISS_INDEX_DIR = "data/faiss_index_with_images"
+CHROMA_DIR = "data/chroma_with_images"
 
 
 def handle_user_input(question):
