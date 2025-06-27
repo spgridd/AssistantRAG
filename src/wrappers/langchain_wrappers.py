@@ -10,12 +10,12 @@ from langchain_core.outputs import ChatResult
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.retrievers import BaseRetriever
 from langchain.schema import Document
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.callbacks import CallbackManagerForRetrieverRun, CallbackManagerForLLMRun
 from langchain_core.embeddings import Embeddings
 from langchain_community.vectorstores import FAISS
 import torch
 from sentence_transformers import CrossEncoder
-from typing import List, Callable, Any, Tuple
+from typing import List, Callable, Any, Tuple, Optional
 
 from genai_client.client import get_client
 
@@ -58,13 +58,22 @@ class VertexAIEmbedding(Embeddings):
 class VertexAIChat(BaseChatModel, BaseModel):
     model: str
     temperature: float = 0.0
+    max_tokens: int = None
+    top_p: float = 0.8
     _client: genai.Client = PrivateAttr()
 
     def __init__(self, client: genai.Client = CLIENT, **kwargs):
         super().__init__(**kwargs)
         self._client = client
 
-    def _generate(self, messages: list[BaseMessage], stop=None, **kwargs) -> ChatResult:
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        stream: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
         contents = []
         for msg in messages:
             role = "user" if isinstance(msg, HumanMessage) else "model"
